@@ -1,0 +1,53 @@
+"""Точка входа: запуск Telegram-бота (long polling) + OAuth-сервер TikTok."""
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+
+from aiogram import Bot, Dispatcher
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
+
+from app import database as db
+from app.config import config
+from app.handlers import get_router
+from app.oauth_server import start_oauth_server
+
+logging.basicConfig(level=logging.INFO,
+                    format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+log = logging.getLogger("bot")
+
+
+async def main() -> None:
+    if not config.bot_token:
+        raise SystemExit("BOT_TOKEN не задан. Заполните .env (см. .env.example).")
+
+    await db.init_db()
+
+    bot = Bot(
+        token=config.bot_token,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+    )
+    dp = Dispatcher()
+    dp.include_router(get_router())
+
+    runner = None
+    if config.tiktok_client_key and config.tiktok_redirect_uri:
+        port = int(os.getenv("PORT", "8080"))
+        runner = await start_oauth_server(port=port)
+        log.info("OAuth-сервер TikTok запущен на порту %s", port)
+    else:
+        log.warning("TikTok OAuth не настроен — привязка аккаунтов недоступна.")
+
+    try:
+        log.info("Бот запущен.")
+        await dp.start_polling(bot)
+    finally:
+        if runner:
+            await runner.cleanup()
+        await bot.session.close()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
