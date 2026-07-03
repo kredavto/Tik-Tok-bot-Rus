@@ -7,6 +7,7 @@ import os
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
 
 from app import database as db
@@ -25,8 +26,16 @@ async def main() -> None:
 
     await db.init_db()
 
+    # В РФ прямой доступ к api.telegram.org часто заблокирован (DPI). Если задан
+    # TELEGRAM_PROXY (сервер вне РФ), весь трафик к Telegram идёт через него.
+    session = None
+    if config.telegram_proxy:
+        session = AiohttpSession(proxy=config.telegram_proxy)
+        log.info("Telegram через прокси: %s", config.telegram_proxy)
+
     bot = Bot(
         token=config.bot_token,
+        session=session,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
     dp = Dispatcher()
