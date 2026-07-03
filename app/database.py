@@ -28,6 +28,15 @@ CREATE TABLE IF NOT EXISTS uploads (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS invoices (
+    inv_id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL,
+    tariff     TEXT NOT NULL,
+    amount     REAL NOT NULL,           -- сумма в рублях
+    status     TEXT NOT NULL DEFAULT 'pending',  -- pending | paid
+    created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS payments (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id      INTEGER NOT NULL,
@@ -106,6 +115,31 @@ async def add_upload(user_id: int, source_url: str, status: str) -> int:
 async def set_upload_status(upload_id: int, status: str) -> None:
     async with aiosqlite.connect(config.database_path) as db:
         await db.execute("UPDATE uploads SET status = ? WHERE id = ?", (status, upload_id))
+        await db.commit()
+
+
+async def create_invoice(user_id: int, tariff: str, amount: float) -> int:
+    async with aiosqlite.connect(config.database_path) as db:
+        cur = await db.execute(
+            "INSERT INTO invoices (user_id, tariff, amount, status, created_at) "
+            "VALUES (?, ?, ?, 'pending', ?)",
+            (user_id, tariff, amount, datetime.utcnow().isoformat()),
+        )
+        await db.commit()
+        return cur.lastrowid
+
+
+async def get_invoice(inv_id: int) -> dict | None:
+    async with aiosqlite.connect(config.database_path) as db:
+        db.row_factory = aiosqlite.Row
+        cur = await db.execute("SELECT * FROM invoices WHERE inv_id = ?", (inv_id,))
+        row = await cur.fetchone()
+        return dict(row) if row else None
+
+
+async def mark_invoice_paid(inv_id: int) -> None:
+    async with aiosqlite.connect(config.database_path) as db:
+        await db.execute("UPDATE invoices SET status = 'paid' WHERE inv_id = ?", (inv_id,))
         await db.commit()
 
 

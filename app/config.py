@@ -26,12 +26,29 @@ class Config:
     tiktok_client_key: str = os.getenv("TIKTOK_CLIENT_KEY", "")
     tiktok_client_secret: str = os.getenv("TIKTOK_CLIENT_SECRET", "")
     tiktok_redirect_uri: str = os.getenv("TIKTOK_REDIRECT_URI", "")
+    # Robokassa
+    robokassa_login: str = os.getenv("ROBOKASSA_LOGIN", "")
+    robokassa_password1: str = os.getenv("ROBOKASSA_PASSWORD1", "")
+    robokassa_password2: str = os.getenv("ROBOKASSA_PASSWORD2", "")
+    robokassa_test: bool = os.getenv("ROBOKASSA_TEST", "0") == "1"
+    # Курс пересчёта $ -> ₽ (тарифы заданы в долларах, Robokassa берёт рубли)
+    robokassa_usd_rate: float = float(os.getenv("ROBOKASSA_USD_RATE", "100"))
+    # Публичный адрес веб-сервера (для ResultURL Robokassa и OAuth TikTok),
+    # напр. http://5.129.234.72:8080
+    public_base_url: str = os.getenv("PUBLIC_BASE_URL", "")
+    web_port: int = int(os.getenv("PORT", "8080"))
     database_path: str = os.getenv("DATABASE_PATH", "bot.db")
     timezone: str = os.getenv("TIMEZONE", "Europe/Moscow")
 
     @property
+    def use_robokassa(self) -> bool:
+        """Robokassa настроена, если заданы логин и оба пароля."""
+        return bool(self.robokassa_login and self.robokassa_password1
+                    and self.robokassa_password2)
+
+    @property
     def use_stars(self) -> bool:
-        """Если провайдер платежей не задан — используем Telegram Stars (XTR)."""
+        """Если ни Robokassa, ни провайдер Telegram Payments не заданы — Stars (XTR)."""
         return not self.payment_provider_token or self.currency.upper() == "XTR"
 
 

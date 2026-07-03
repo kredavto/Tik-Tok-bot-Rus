@@ -13,7 +13,7 @@ from aiogram.enums import ParseMode
 from app import database as db
 from app.config import config
 from app.handlers import get_router
-from app.oauth_server import start_oauth_server
+from app.oauth_server import start_web_server
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -41,13 +41,17 @@ async def main() -> None:
     dp = Dispatcher()
     dp.include_router(get_router())
 
+    tiktok_ready = bool(config.tiktok_client_key and config.tiktok_redirect_uri)
     runner = None
-    if config.tiktok_client_key and config.tiktok_redirect_uri:
-        port = int(os.getenv("PORT", "8080"))
-        runner = await start_oauth_server(port=port)
-        log.info("OAuth-сервер TikTok запущен на порту %s", port)
-    else:
+    # Веб-сервер нужен для OAuth TikTok и/или колбэка оплаты Robokassa.
+    if tiktok_ready or config.use_robokassa:
+        runner = await start_web_server(bot=bot, port=config.web_port)
+        log.info("Веб-сервер запущен на порту %s (TikTok=%s, Robokassa=%s)",
+                 config.web_port, tiktok_ready, config.use_robokassa)
+    if not tiktok_ready:
         log.warning("TikTok OAuth не настроен — привязка аккаунтов недоступна.")
+    if config.use_robokassa:
+        log.info("Оплата: Robokassa (тест=%s)", config.robokassa_test)
 
     try:
         log.info("Бот запущен.")
