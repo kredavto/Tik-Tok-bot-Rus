@@ -1,6 +1,7 @@
-"""Оплата тарифов через Telegram Payments или Telegram Stars (XTR)."""
+"""Оплата тарифов через Robokassa / Telegram Payments / Telegram Stars."""
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta
 
 from aiogram import F, Router
@@ -20,6 +21,7 @@ from ..services import robokassa
 from ..tariffs import TARIFFS, get_tariff
 
 router = Router()
+log = logging.getLogger("payments")
 
 
 def _rub(price_usd: float) -> float:
@@ -44,25 +46,33 @@ async def buy(cb: CallbackQuery) -> None:
     code = cb.data.split(":", 1)[1]
     tariff = get_tariff(code)
 
+    log.info("buy click: user=%s code=%s robokassa=%s",
+             cb.from_user.id, code, config.use_robokassa)
+
     # 1) Robokassa (приоритетно, если настроена)
     if config.use_robokassa:
-        amount_rub = _rub(tariff.price_usd)
-        inv_id = await db.create_invoice(cb.from_user.id, code, amount_rub)
-        url = robokassa.build_payment_url(
-            inv_id, amount_rub, f"Тариф {tariff.title}", cb.from_user.id, code,
-        )
-        markup = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=f"💳 Оплатить {amount_rub:g}₽", url=url)],
-            [InlineKeyboardButton(text="⬅️ Назад", callback_data="tariffs")],
-        ])
-        await cb.message.edit_text(
-            f"Тариф <b>{tariff.title}</b> — {tariff.description}.\n"
-            f"К оплате: <b>{amount_rub:g}₽</b> (подписка на 30 дней).\n\n"
-            "Нажмите кнопку ниже, оплатите на странице Robokassa — тариф "
-            "активируется автоматически после подтверждения платежа.",
-            reply_markup=markup,
-        )
-        await cb.answer()
+        try:
+            amount_rub = _rub(tariff.price_usd)
+            inv_id = await db.create_invoice(cb.from_user.id, code, amount_rub)
+            url = robokassa.build_payment_url(
+                inv_id, amount_rub, f"Тариф {tariff.title}", cb.from_user.id, code,
+            )
+            markup = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text=f"💳 Оплатить {amount_rub:g}₽", url=url)],
+                [InlineKeyboardButton(text="⬅️ Назад", callback_data="tariffs")],
+            ])
+            # Отправляем НОВЫМ сообщением (надёжнее, чем edit_text).
+            await cb.message.answer(
+                f"Тариф <b>{tariff.title}</b> — {tariff.description}.\n"
+                f"К оплате: <b>{amount_rub:g}₽</b> (подписка на 30 дней).\n\n"
+                "Нажмите кнопку ниже, оплатите на странице Robokassa — тариф "
+                "активируется автоматически после подтверждения платежа.",
+                reply_markup=markup,
+            )
+            await cb.answer()
+        except Exception as exc:  # noqa: BLE001
+            log.exception("Ошибка при формировании оплаты Robokassa")
+            await cb.answer(f"Ошибка оплаты: {exc}"[:190], show_alert=True)
         return
 
     # 2) Telegram Payments / Stars
