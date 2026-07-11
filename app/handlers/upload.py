@@ -56,9 +56,16 @@ async def _process(message: Message, file_path: str, source: str) -> None:
     try:
         result = await tiktok.upload_video(access_token, file_path, caption="")
         await db.set_upload_status(upload_id, "done")
+        if result.get("mode") == "direct":
+            done_text = "✅ Готово! Видео опубликовано в TikTok."
+        else:
+            done_text = (
+                "✅ Готово! Видео загружено в <b>Черновики</b> TikTok.\n"
+                "Откройте приложение TikTok → Профиль → Черновики, чтобы "
+                "опубликовать его."
+            )
         await status.edit_text(
-            f"✅ Готово! Видео отправлено в TikTok.\n"
-            f"publish_id: <code>{result.get('publish_id')}</code>",
+            f"{done_text}\npublish_id: <code>{result.get('publish_id')}</code>",
             reply_markup=kb.main_menu(),
         )
     except tiktok.TikTokError as exc:

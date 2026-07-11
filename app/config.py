@@ -26,6 +26,9 @@ class Config:
     tiktok_client_key: str = os.getenv("TIKTOK_CLIENT_KEY", "")
     tiktok_client_secret: str = os.getenv("TIKTOK_CLIENT_SECRET", "")
     tiktok_redirect_uri: str = os.getenv("TIKTOK_REDIRECT_URI", "")
+    # Режим загрузки: "draft" (в черновики, scope video.upload) или
+    # "direct" (прямая публикация, scope video.publish, требует аудит).
+    tiktok_upload_mode: str = os.getenv("TIKTOK_UPLOAD_MODE", "draft").lower()
     # Robokassa
     robokassa_login: str = os.getenv("ROBOKASSA_LOGIN", "")
     robokassa_password1: str = os.getenv("ROBOKASSA_PASSWORD1", "")
